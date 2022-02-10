@@ -1,0 +1,82 @@
+import time
+import random
+import numpy as np
+import pandas as pd
+import datetime as dt
+from pandas_datareader import data
+from pandas.tseries.offsets import BDay
+pd.set_option('max_columns', None)
+
+''' Starts performance counter in seconds to time code '''
+t0 = time.perf_counter()
+
+''' Message to notify user of current / next steps of code '''
+print("Retrieving Apple (AAPL) close data...please wait...")
+print('\n')
+
+''' Specifies start and end date, end date used in API to retrieve historic close future prices '''
+today = dt.datetime.today()
+nDays = 100
+end = (today - BDay(nDays)).strftime("%d-%b-%y")
+
+''' retrieves Apple (AAPL) prices via Yahoo finance '''
+df = data.DataReader("AAPL", "yahoo", end)
+df1 = df[:]
+
+''' Data analysis '''
+df = df[:]
+df.sort_values(by="Date", ascending=False, inplace=True)
+df = round(df[["Close"]], 2)
+df["Change(%)"] = round(df["Close"].pct_change()*100, 2)
+df['Change(%)'].fillna(0, inplace=True)
+
+''' Assigning named columns with random choice(s) for style, qty, type, and strike non-biased approach '''
+df['Style'] = random.choices(['American', 'European'], weights=[1, 1], k=len(df))
+df['Quantity'] = np.random.randint(1.00, 10000.00, df.shape[0])
+df['Type'] = random.choices(['Call', 'Put'], weights=[1, 1], k=len(df))
+df['Strike'] = np.random.randint(40.00, 200.00, df.shape[0])
+df['Trade Status'] = None
+df["Payoff($)"] = None
+
+''' Iterates through each row in df to determine strings / calculations to apply on conditions '''
+for index, row in df.iterrows():
+
+    if row['Type'] == 'Call' and row['Close'] > row['Strike']:
+        df.at[index, 'Trade Status'] = "In-The-Money"
+    elif row['Type'] == 'Call' and row['Close'] == row['Strike']:
+        df.at[index, 'Trade Status'] = "At-The-Money"
+    elif row['Type'] == 'Call' and row['Close'] < row['Strike']:
+        df.at[index, 'Trade Status'] = "Out-The-Money"
+
+    if row['Type'] == 'Call' and row['Close'] > row['Strike']:
+        df.at[index, 'Payoff($)'] = (row['Close'] - row['Strike']) * df.at[index, "Quantity"]
+    elif row['Type'] == 'Call' and row['Close'] < row['Strike']:
+        df.at[index, 'Payoff($)'] = 00.00
+
+    if row['Type'] == 'Put' and row['Close'] > row['Strike']:
+        df.at[index, 'Trade Status'] = "Out-The-Money"
+    elif row['Type'] == 'Put' and row['Close'] == row['Strike']:
+        df.at[index, 'Trade Status'] = "At-The-Money"
+    elif row['Type'] == 'Put' and row['Close'] < row['Strike']:
+        df.at[index, 'Trade Status'] = "In-The-Money"
+
+    if row['Type'] == 'Put' and row['Close'] < row['Strike']:
+        df.at[index, 'Payoff($)'] = (row['Strike'] - row['Quantity']) * df.at[index, 'Quantity']
+    elif row['Type'] == 'Put' and row['Close'] > row['Strike']:
+        df.at[index, 'Payoff($)'] = 00.00
+
+''' Shows snippet of finalised df '''
+print(df)
+
+''' Saves both dataframes to Excel workbooks with sheet names included '''
+df.to_excel(r'C:\Users\AmitP\Desktop\Apple.xlsx', sheet_name="Trade_Expiry_Data", index=True, header=True)
+df1.to_excel(r'C:\Users\AmitP\Desktop\Apple_rawData.xlsx', sheet_name="Raw_Data", index=True, header=True)
+
+''' Starts performance counter in seconds '''
+t1 = time.perf_counter()
+
+''' Calculates performance counter of code in seconds '''
+total_time = round(t1 - t0, 2)
+
+print("Job Successful!")
+print("Code executed in {} seconds at {} GMT".format(total_time, today))
